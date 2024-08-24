@@ -1,12 +1,13 @@
 """
 This script is used to find flights from one city to another.
+
+References:
+1. https://support.travelpayouts.com/hc/en-us/articles/203956083-Requirements-for-Aviasales-data-API-access
 """
 
 import requests
-import json
 import os
 import datetime
-
 import pandas as pd
 
 class EnvLoader:
@@ -42,53 +43,42 @@ class FlightSearchParams:
             "sorting": self.sorting,
             "beginning_of_period": self.beginning_of_period,
             "period_type": self.period_type
-
         }
 
 class FlightFinder:
-    def __init__(self, api_key):
-        self.api_key = api_key
+    def __init__(self):
+        EnvLoader.load_env()
+        self.api_key = os.getenv("TRAVELPAYOUTS_API_KEY")
         self.url = "https://api.travelpayouts.com/v2/prices/latest"
 
     def find_flights(self, params: FlightSearchParams):
-        headers = {
-            "X-Access-Token": self.api_key
-        }
+        headers = {"X-Access-Token": self.api_key}
         response = requests.get(self.url, headers=headers, params=params.to_dict())
         return response.json()
 
-# Load the environment variables
-EnvLoader.load_env()
+    def best_flight(self):
+        params = FlightSearchParams(
+            origin="SJC",       # Origin airport code (San Francisco)
+            destination="LIM",  # Destination airport code (Lima)
+            currency="USD",     # Currency of the price
+            page=1,
+            unique="true",
+            sorting="price", 
+            beginning_of_period="2024-09-01",
+            period_type="month"
+        )
 
-# Your Travelpayouts API key
-api_key = os.getenv("TRAVELPAYOUTS_API_KEY")
+        data = self.find_flights(params)
 
-# Parameters for the flight search
-params = FlightSearchParams(
-    origin="SJC",       # Origin airport code (San Francisco)
-    destination="LIM",  # Destination airport code (Lima)
-    currency="USD",     # Currency of the price
-    page=1,
-    unique="true",
-    sorting="price", 
-    beginning_of_period="2024-09-01",
-    period_type="month"
-)
+        short_listed = [
+            flight for flight in data["data"]
+            if (datetime.datetime.strptime(flight["return_date"], "%Y-%m-%d") - 
+                datetime.datetime.strptime(flight["depart_date"], "%Y-%m-%d")).days > 7
+        ]
 
-# Create a FlightFinder instance
-flight_finder = FlightFinder(api_key)
+        short_listed_df = pd.DataFrame(short_listed).sort_values(by="duration")
+        return short_listed_df.head(1)
 
-# Find flights
-data = flight_finder.find_flights(params)
-
-# Filter by depart_date and return_date of more than a week
-short_listed = list()
-for flight in data["data"]:
-    depart_date = datetime.datetime.strptime(flight["depart_date"], "%Y-%m-%d")
-    return_date = datetime.datetime.strptime(flight["return_date"], "%Y-%m-%d")
-    if (return_date - depart_date).days > 7:
-        short_listed.append(flight)
-
-# Print the JSON response
-short_listed = pd.DataFrame(short_listed).sort_values(by="duration")
-print(short_listed)
+if __name__ == "__main__":
+    flight_finder = FlightFinder()
+    print(flight_finder.best_flight())

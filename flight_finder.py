@@ -58,7 +58,7 @@ class FlightFinder:
 
     def best_flight(self):
         params = FlightSearchParams(
-            origin="SJC",       # Origin airport code (San Francisco)
+            origin="SFO",       # Origin airport code (San Francisco)
             destination="LIM",  # Destination airport code (Lima)
             currency="USD",     # Currency of the price
             page=1,
@@ -77,7 +77,7 @@ class FlightFinder:
         ]
 
         short_listed_df = pd.DataFrame(short_listed).sort_values(by="duration")
-        return short_listed_df.head(1)
+        return short_listed_df.head(1).to_dict('records')[0]
 
 if __name__ == "__main__":
     flight_finder = FlightFinder()
